@@ -10,19 +10,6 @@ export type ReloaderResponse = {
   status: string
 }
 
-export type TypedArray =
-  | Int8Array
-  | Uint8Array
-  | Uint8ClampedArray
-  | Int16Array
-  | Uint16Array
-  | Int32Array
-  | Uint32Array
-  | Float32Array
-  | Float64Array
-  | BigInt64Array
-  | BigUint64Array
-
 export type FXRReloader = {
   /**
    * A WebSocket connected to fxr-ws-reloader.dll.
@@ -44,7 +31,7 @@ export interface ReloadParams {
   /**
    * An ArrayBuffer or typed array containing the contents of the FXR file.
    */
-  buffer: ArrayBuffer | TypedArray
+  buffer: ArrayBuffer | ArrayBufferView
   /**
    * If set to true, this will disable the resident SFX on a {@link weapon}
    * for a short time and then enable it again, effectively respawning the SFX.
@@ -149,8 +136,11 @@ export function request(ws: WebSocket, obj: any) {
   )
 }
 
-async function bufferToBase64(buffer: ArrayBuffer | TypedArray) {
+async function bufferToBase64(buffer: ArrayBuffer | ArrayBufferView) {
   try {
+    if (ArrayBuffer.isView(buffer)) {
+      return Buffer.from(buffer.buffer).toString('base64')
+    }
     return Buffer.from(buffer).toString('base64')
   } catch {
     const base64url = await new Promise<string>(fulfil => {
@@ -229,7 +219,7 @@ export async function reload(ws: WebSocket, {
  * will just replace the port number.
  */
 export default async function reloadFXR(
-  buffer: ArrayBuffer | TypedArray,
+  buffer: ArrayBuffer | ArrayBufferView,
   respawn?: boolean,
   weapon?: number,
   dummyPoly?: number,

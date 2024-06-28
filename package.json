@@ -27,6 +27,7 @@
   "license": "Unlicense",
   "devDependencies": {
     "@types/node": "^20.14.2",
+    "@types/ws": "^8.5.10",
     "typescript": "^5.4.5"
   },
   "dependencies": {
