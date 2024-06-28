@@ -1,6 +1,6 @@
 {
   "name": "fxr-reloader",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Reload and respawn FXRs in Elden Ring while the game is running.",
   "type": "module",
   "bin": {
