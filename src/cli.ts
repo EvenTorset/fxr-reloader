@@ -2,7 +2,7 @@
 
 import fs from 'node:fs/promises'
 
-import reloadFXR from './index.js'
+import reloadFXR from './node.js'
 
 const fileName = process.argv[2]
 const respawn = process.argv.length > 3
