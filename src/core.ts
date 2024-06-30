@@ -95,13 +95,14 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
       requestMap.delete(res.requestID)
     }
   })
-  ws.on('error', (err: any) => {
-    console.error(
-      'Failed to connect to WebSocket server!',
-      'Is the game running, and is the DLL mod installed?'
-    )
-  });
-  return new Promise<FXRReloader>(fulfil => {
+  return new Promise<FXRReloader>((fulfil, reject) => {
+    ws.on('error', (err: any) => {
+      console.error(
+        'Failed to connect to WebSocket server!',
+        'Is the game running, and is the DLL mod installed?'
+      )
+      reject(err)
+    })
     ws.on('open', () => {
       fulfil({
         ws,
