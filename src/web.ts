@@ -38,13 +38,14 @@ export function connect(portOrURL: number | string = 24621) {
  * 
  * **Default**: false
  * @param weapon When {@link respawn} is enabled, this is the numerical ID for
- * the weapon to change the resident SFX of.
+ * the weapon to change the resident SFX of. Use the {@link core.Weapon Weapon}
+ * enum to select a weapon easily.
  * 
- * **Default**: 24050000 (Ghostflame Torch)
+ * **Default**: {@link core.Weapon.ShortSword Weapon.ShortSword}
  * @param dummyPoly When {@link respawn} is enabled, this is the ID of the
  * dummy poly to attach the SFX to.
  * 
- * **Default**: 206
+ * **Default**: 120
  * @param portOrURL The port number or URL string to connect to. By default, it
  * will try to connect to `ws://localhost:24621`, and setting only the port
  * will just replace the port number.
@@ -52,7 +53,7 @@ export function connect(portOrURL: number | string = 24621) {
 export default function reloadFXR(
   buffer: ArrayBuffer | ArrayBufferView,
   respawn?: boolean,
-  weapon?: number,
+  weapon?: core.Weapon,
   dummyPoly?: number,
   portOrURL?: number | string,
 ) {
@@ -60,6 +61,7 @@ export default function reloadFXR(
 }
 
 export {
+  Weapon,
   RequestType,
   ReloaderResponse,
   ReloadParams,

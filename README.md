@@ -16,7 +16,7 @@ This library exports a default function that should be all you need in most case
 ### Example
 ```js
 import { BasicNode, BillboardEx, FXR, Game } from '@cccode/fxr'
-import reloadFXR from 'fxr-reloader'
+import { default as reloadFXR, Weapon } from 'fxr-reloader'
 
 // Use @cccode/fxr to create a new FXR with a big red square
 const fxr = new FXR(402030)
@@ -29,9 +29,9 @@ fxr.root.nodes = [
 ]
 const buffer = fxr.toArrayBuffer(Game.EldenRing)
 
-// Reload the FXR and respawn it by attaching it to weapon 24050000 (Ghostflame
-// Torch) at dummy poly 206
-await reloadFXR(buffer, true, 24050000, 206)
+// Reload the FXR and respawn it by attaching it to the Short Sword at dummy
+// poly 120
+await reloadFXR(buffer, true, Weapon.ShortSword, 120)
 ```
 The weapon and dummy poly IDs used there are the defaults, so this would be equivalent in this case:
 ```js
@@ -44,10 +44,10 @@ await reloadFXR(buffer)
 If you also provide a port number or URL, it will try to connect to that WebSocket server instead of the default (ws://localhost:24621). The DLL mod's port can be changed by editing its JSON config file.
 ```js
 // Try to connect to ws://localhost:9003
-await reloadFXR(buffer, true, 24050000, 206, 9003)
+await reloadFXR(buffer, true, Weapon.ShortSword, 120, 9003)
 
 // Try to connect to ws://example.com:9003
-await reloadFXR(buffer, true, 24050000, 206, 'ws://example.com:9003')
+await reloadFXR(buffer, true, Weapon.ShortSword, 120, 'ws://example.com:9003')
 ```
 
 ### Advanced usage
@@ -71,10 +71,13 @@ Examples:
 npx reload-fxr f000402030.fxr
 
 # Reload and respawn f000402030.fxr
-npx reload-fxr f000402030.fxr 24050000 206
+npx reload-fxr f000402030.fxr ShortSword 120
+
+# Using the raw weapon ID instead of the name
+npx reload-fxr f000402030.fxr 2010000 120
 
 # Reload and respawn f000402030.fxr using port 9003 for the WebSocket
-npx reload-fxr f000402030.fxr 24050000 206 9003
+npx reload-fxr f000402030.fxr ShortSword 120 9003
 ```
 If you want to use the command from any folder, install the library globally:
 ```bash
@@ -82,5 +85,5 @@ npm i -g fxr-reloader
 ```
 This allows you to use it from anywhere, and without `npx`:
 ```bash
-reload-fxr f000402030.fxr 24050000 206
+reload-fxr f000402030.fxr ShortSword 120
 ```
