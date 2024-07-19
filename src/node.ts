@@ -14,10 +14,46 @@ export function connect(portOrURL: number | string = 24621) {
 }
 
 /**
+ * Updates a list of params with new field values for any number of rows.
+ * @param params Object where the keys are param names and the values are
+ * objects where the keys are row IDs and the values are objects where the keys
+ * are field names and the values are field values.
+ * @param portOrURL The port number or URL string to connect to. By default, it
+ * will try to connect to `ws://localhost:24621`, and setting only the port
+ * will just replace the port number.
+ */
+export function setParams(
+  params: core.Params,
+  portOrURL?: number | string,
+) {
+  return core.setParams(WebSocket, params, portOrURL)
+}
+
+/**
+ * Reloads an FXR and respawns the lantern SpEffectVfx and updates its
+ * midstSfxId.
+ * @param buffer An ArrayBuffer or ArrayBufferView containing the contents of
+ * the FXR file.
+ * @param dummyPoly The ID of the dummy poly to attach the SFX to.
+ * 
+ * **Default**: 160
+ * @param portOrURL The port number or URL string to connect to. By default, it
+ * will try to connect to `ws://localhost:24621`, and setting only the port
+ * will just replace the port number.
+ */
+export function reloadLanternFXR(
+  buffer: ArrayBuffer | ArrayBufferView,
+  dummyPoly?: number,
+  portOrURL?: number | string,
+) {
+  return core.reloadLanternFXR(WebSocket, buffer, dummyPoly, portOrURL)
+}
+
+/**
  * Reload an FXR, and optionally respawn it as a resident SFX of a given
  * weapon.
- * @param buffer An ArrayBuffer or typed array containing the contents of the
- * FXR file.
+ * @param buffer An ArrayBuffer or ArrayBufferView containing the contents of
+ * the FXR file.
  * @param respawn If set to true, this will disable the resident SFX on a
  * {@link weapon} for a short time and then enable it again, effectively
  * respawning the SFX. This allows an SFX attached to a weapon to automatically
@@ -47,6 +83,8 @@ export default function reloadFXR(
   return core.default(WebSocket, buffer, respawn, weapon, dummyPoly, portOrURL)
 }
 
+export { reloadFXR }
+
 export {
   Weapon,
   RequestType,
@@ -54,7 +92,8 @@ export {
   ReloadParams,
   WSLikeWebSocket,
   WSLikeWebSocketConstructor,
+  Params,
+  ParamRow,
   FXRReloader,
   request,
-  reload,
 } from './core.js'

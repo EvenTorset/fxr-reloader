@@ -498,11 +498,16 @@ export enum Weapon {
 export enum RequestType {
   ReloadFXR = 0,
   SetResidentSFX = 1,
+  SetParams = 2,
+  ListParams = 3,
+  ListRows = 4,
+  GetParamRow = 5,
 }
 
 export type ReloaderResponse = {
   requestID: string
   status: string
+  data?: any
 }
 
 export interface ReloadParams {
@@ -554,6 +559,16 @@ export interface WSLikeWebSocketConstructor {
   new(url: string): WSLikeWebSocket
 }
 
+export type Params = {
+  [param: string]: {
+    [row: string]: ParamRow
+  }
+}
+
+export type ParamRow = {
+  [field: string]: number | boolean
+}
+
 export type FXRReloader = {
   /**
    * A WebSocket connected to fxr-ws-reloader.dll.
@@ -569,17 +584,26 @@ export type FXRReloader = {
    * weapon.
    */
   reload(obj: ReloadParams): Promise<void>
+  /**
+   * Updates a list of params with new field values for any number of rows.
+   */
+  setParams(params: Params): Promise<void>
+  /**
+   * Resolves with a list of all param names.
+   */
+  listParams(): Promise<string[]>
+  /**
+   * Resolves with a list of all row IDs in the given param.
+   */
+  listRows(param: string): Promise<number[]>
+  /**
+   * Resolves with an entire param row as a JSON object.
+   */
+  getParamRow(param: string, row: number): Promise<ParamRow>
 }
 
 const requestMap = new Map<string, (res: ReloaderResponse) => void>
 
-/**
- * Connects to a WebSocket server and sets up the necessary event handlers for
- * reloading FXRs.
- * @param portOrURL The port number or URL string to connect to. By default, it
- * will try to connect to `ws://localhost:24621`, and setting only the port
- * will just replace the port number.
- */
 export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: number | string = 24621) {
   const url = typeof portOrURL === 'number' ?
     `ws://localhost:${portOrURL}` :
@@ -594,17 +618,38 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
   })
   return new Promise<FXRReloader>((fulfil, reject) => {
     ws.on('error', (err: any) => {
-      console.error(
+      const message = [
         'Failed to connect to WebSocket server!',
         'Is the game running, and is the DLL mod installed?'
-      )
-      reject(err)
+      ].join(' ')
+      console.error(message)
+      reject(new Error(message))
     })
     ws.on('open', () => {
       fulfil({
         ws,
-        request(obj: any) { return request(ws, obj) },
-        reload(obj: ReloadParams) { return reload(ws, obj) }
+        request(obj) { return request(ws, obj) },
+        reload(obj) { return reload(ws, obj) },
+        setParams(params: Params) {
+          return request(ws, {
+            type: RequestType.SetParams,
+            params,
+          })
+        },
+        listParams() { return request(ws, { type: RequestType.ListParams })},
+        listRows(param: string) {
+          return request(ws, {
+            type: RequestType.ListRows,
+            param
+          })
+        },
+        getParamRow(param, row) {
+          return request(ws, {
+            type: RequestType.GetParamRow,
+            param,
+            row
+          })
+        },
       })
     })
   })
@@ -628,10 +673,10 @@ export function request(ws: WSLikeWebSocket, obj: any) {
     id = randomString(32)
   }
   ws.send(JSON.stringify(Object.assign({}, obj, { requestID: id })))
-  return new Promise<void>((fulfil, reject) =>
+  return new Promise<any>((fulfil, reject) =>
     requestMap.set(id, (res: ReloaderResponse) => {
       if (res.status === 'success') {
-        fulfil()
+        fulfil(res.data)
       } else {
         reject(res.status)
       }
@@ -655,12 +700,14 @@ async function bufferToBase64(buffer: ArrayBuffer | ArrayBufferView) {
   }
 }
 
-/**
- * Reload an FXR, and optionally respawn it as a resident SFX of a given
- * weapon.
- * @param ws A WebSocket connected to fxr-ws-reloader.dll.
- */
-export async function reload(ws: WSLikeWebSocket, {
+function getFXRID(buffer: ArrayBuffer | ArrayBufferView) {
+  const dv = new DataView(
+    buffer instanceof ArrayBuffer ? buffer : buffer.buffer
+  )
+  return dv.getInt32(12, true)
+}
+
+async function reload(ws: WSLikeWebSocket, {
   buffer,
   respawn,
   wait = 100,
@@ -686,19 +733,60 @@ export async function reload(ws: WSLikeWebSocket, {
     await new Promise(f => setTimeout(f, wait))
 
     // Set the resident SFX ID to the ID in the FXR
-    const dv = new DataView(
-      buffer instanceof ArrayBuffer ? buffer : buffer.buffer
-    )
     await request(ws, {
       type: RequestType.SetResidentSFX,
       weapon,
-      sfx: dv.getInt32(12, true),
+      sfx: getFXRID(buffer),
       dmy: dummyPoly,
     })
   }
 }
 
-export default async function reloadFXR(
+export async function setParams(
+  WebSocketClass: WSLikeWebSocketConstructor,
+  params: Params,
+  portOrURL?: number | string,
+) {
+  const reloader = await connect(WebSocketClass, portOrURL)
+  await reloader.setParams(params)
+  reloader.ws.close()
+}
+
+export async function reloadLanternFXR(
+  WebSocketClass: WSLikeWebSocketConstructor,
+  buffer: ArrayBuffer | ArrayBufferView,
+  dummyPoly: number = 160,
+  portOrURL?: number | string,
+) {
+  const reloader = await connect(WebSocketClass, portOrURL)
+  const lanternSpEffectID = 3245
+  const row = await reloader.getParamRow('SpEffectParam', lanternSpEffectID)
+  await reloader.setParams({
+    SpEffectParam: {
+      [lanternSpEffectID]: {
+        vfxId: -1,
+        vfxId1: -1,
+      }
+    },
+    SpEffectVfxParam: {
+      [row.vfxId as number]: {
+        midstSfxId: getFXRID(buffer),
+        midstDmyId: dummyPoly,
+      }
+    }
+  })
+  await new Promise(f => setTimeout(f, 100))
+  await reloader.setParams({
+    SpEffectParam: {
+      [lanternSpEffectID]: {
+        vfxId: row.vfxId,
+      }
+    }
+  })
+  reloader.ws.close()
+}
+
+export default async function(
   WebSocketClass: WSLikeWebSocketConstructor,
   buffer: ArrayBuffer | ArrayBufferView,
   respawn?: boolean,
