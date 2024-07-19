@@ -759,6 +759,7 @@ export async function reloadLanternFXR(
   portOrURL?: number | string,
 ) {
   const reloader = await connect(WebSocketClass, portOrURL)
+  await reloader.reload({ buffer })
   const lanternSpEffectID = 3245
   const row = await reloader.getParamRow('SpEffectParam', lanternSpEffectID)
   await reloader.setParams({
