@@ -100,6 +100,7 @@ export { reloadFXR }
 
 export {
   Weapon,
+  Affinity,
   RequestType,
   ReloaderResponse,
   ReloadParams,
