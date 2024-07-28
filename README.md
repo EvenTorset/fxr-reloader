@@ -11,7 +11,7 @@ npm i fxr-reloader
 Note that this library does not do anything on its own. It requires the [FXR WebSocket Reloader](https://github.com/EvenTorset/fxr-ws-reloader) DLL mod for Elden Ring to be installed and running. See the README for that on how to install it.
 
 ## Usage
-This library exports a default function that should be all you need in most cases. It simply takes an ArrayBuffer or typed array of the contents of the FXR file, and optionally some extra settings for controlling if and how the SFX is respawned, and what WebSocket address to connect to.
+This library exports a default function that should be all you need in most cases. It simply takes an FXR object from the `@cccode/fxr` library, or an ArrayBuffer or ArrayBufferView of the contents of the FXR file, and optionally some extra settings for controlling if and how the SFX is respawned, and what WebSocket address to connect to.
 
 ### Example
 ```js
@@ -27,38 +27,41 @@ fxr.root.nodes = [
     })
   ])
 ]
-const buffer = fxr.toArrayBuffer(Game.EldenRing)
 
 // Reload the FXR and respawn it by attaching it to the Short Sword (with
 // standard affinity) at dummy poly 120
-await reloadFXR(buffer, true, Weapon.ShortSword + Affinity.Standard, 120)
+await reloadFXR(fxr, true, Weapon.ShortSword + Affinity.Standard, 120)
 ```
 The weapon and dummy poly IDs used there are the defaults, so this would be equivalent in this case:
 ```js
-await reloadFXR(buffer, true)
+await reloadFXR(fxr, true)
 ```
 You can also just reload the effect without respawning it:
 ```js
-await reloadFXR(buffer)
+await reloadFXR(fxr)
 ```
 If you also provide a port number or URL, it will try to connect to that WebSocket server instead of the default (ws://localhost:24621). The DLL mod's port can be changed by editing its JSON config file.
 ```js
 // Try to connect to ws://localhost:9003
-await reloadFXR(buffer, true, Weapon.ShortSword, 120, 9003)
+await reloadFXR(fxr, true, Weapon.ShortSword, 120, 9003)
 
 // Try to connect to ws://example.com:9003
-await reloadFXR(buffer, true, Weapon.ShortSword, 120, 'ws://example.com:9003')
+await reloadFXR(fxr, true, Weapon.ShortSword, 120, 'ws://example.com:9003')
 ```
 
 ### Advanced usage
-The default function should be good enough for most cases, but there are some cases where it would have poor performance compared to other methods. This is why the library also has named exports for all of the functions used by the default function.
+The default function should be all you need for most cases, but there are some cases where it would have poor performance compared to other methods, or you may want to do something else than just reloading and respawning a weapon effect.
 
-If you need to use these functions for some reason, I recommend just checking out the source code in this repo. It's nice and short, and decently documented with JSDoc comments.
+If you need to use these functions, I recommend just checking out the source code in this repo. It's nice and short, and decently documented with JSDoc comments.
 
 Here's a very brief overview of the named exports:
+- `Weapon`: An enum with IDs for all weapons in Elden Ring.
+- `Affinity`: An enum with ID offsets for all weapon affinities in Elden Ring.
 - `connect`: This function takes a port number or a URL string and uses that to try to connect to a WebSocket server. It returns a promise that resolves with a reloader object containing the WebSocket object, a request function, and a reload function.
 - `request`: This function makes a request to a given WebSocket. It automatically handles the request ID, and it returns a promise that resolves when it has received a response from the server. If the request did not succeed, the returned promise rejects with the status from the response.
-- `reload`: This is pretty much the same as the default function, but it takes a WebSocket object directly, which means you can use this with your own WebSocket client.
+- `reloadFXR`: This is the same as the default export.
+- `reloadLanternFXR`: This function reloads an effect and respawns it by replacing the lantern effect instead of a weapon effect.
+- `setParams`: This function can be used to edit any game parameters live, similar to the param hot reload feature in DSMS/Smithbox.
 
 ## Command line
 This package also provides a command that can reload an FXR file:
