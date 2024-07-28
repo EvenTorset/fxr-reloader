@@ -65,8 +65,8 @@ export function reloadLanternFXR(
 /**
  * Reload an FXR, and optionally respawn it as a resident SFX of a given
  * weapon.
- * @param buffer An ArrayBuffer or ArrayBufferView containing the contents of
- * the FXR file.
+ * @param fxr An FXR object, or an ArrayBuffer or ArrayBufferView containing
+ * the contents of the FXR file.
  * @param respawn If set to true, this will disable the resident SFX on a
  * {@link weapon} for a short time and then enable it again, effectively
  * respawning the SFX. This allows an SFX attached to a weapon to automatically
@@ -75,7 +75,7 @@ export function reloadLanternFXR(
  * **Default**: false
  * @param weapon When {@link respawn} is enabled, this is the numerical ID for
  * the weapon to change the resident SFX of. Use the {@link core.Weapon Weapon}
- * enum to select a weapon easily.
+ * and {@link core.Affinity Affinity} enums to select a weapon easily.
  * 
  * **Default**: {@link core.Weapon.ShortSword Weapon.ShortSword}
  * @param dummyPoly When {@link respawn} is enabled, this is the ID of the
@@ -87,13 +87,13 @@ export function reloadLanternFXR(
  * will just replace the port number.
  */
 export default function reloadFXR(
-  buffer: ArrayBuffer | ArrayBufferView,
+  fxr: ArrayBuffer | ArrayBufferView | core.FXRLike,
   respawn?: boolean,
-  weapon?: core.Weapon,
+  weapon?: number,
   dummyPoly?: number,
   portOrURL?: number | string,
 ) {
-  return core.default(WSLikeWebSocket, buffer, respawn, weapon, dummyPoly, portOrURL)
+  return core.default(WSLikeWebSocket, fxr, respawn, weapon, dummyPoly, portOrURL)
 }
 
 export { reloadFXR }
@@ -109,5 +109,6 @@ export {
   Params,
   ParamRow,
   FXRReloader,
+  FXRLike,
   request,
 } from './core.js'

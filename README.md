@@ -16,7 +16,7 @@ This library exports a default function that should be all you need in most case
 ### Example
 ```js
 import { BasicNode, BillboardEx, FXR, Game } from '@cccode/fxr'
-import { default as reloadFXR, Weapon } from 'fxr-reloader'
+import reloadFXR, { Weapon, Affinity } from 'fxr-reloader'
 
 // Use @cccode/fxr to create a new FXR with a big red square
 const fxr = new FXR(402030)
@@ -29,9 +29,9 @@ fxr.root.nodes = [
 ]
 const buffer = fxr.toArrayBuffer(Game.EldenRing)
 
-// Reload the FXR and respawn it by attaching it to the Short Sword at dummy
-// poly 120
-await reloadFXR(buffer, true, Weapon.ShortSword, 120)
+// Reload the FXR and respawn it by attaching it to the Short Sword (with
+// standard affinity) at dummy poly 120
+await reloadFXR(buffer, true, Weapon.ShortSword + Affinity.Standard, 120)
 ```
 The weapon and dummy poly IDs used there are the defaults, so this would be equivalent in this case:
 ```js
@@ -75,6 +75,9 @@ npx reload-fxr f000402030.fxr ShortSword 120
 
 # Using the raw weapon ID instead of the name
 npx reload-fxr f000402030.fxr 2010000 120
+
+# Using a different weapon affinity than standard
+npx reload-fxr f000402030.fxr ShortSword+Keen 120
 
 # Reload and respawn f000402030.fxr using port 9003 for the WebSocket
 npx reload-fxr f000402030.fxr ShortSword 120 9003

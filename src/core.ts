@@ -526,11 +526,16 @@ export type ReloaderResponse = {
   data?: any
 }
 
+export interface FXRLike {
+  toArrayBuffer(game: number): ArrayBuffer
+}
+
 export interface ReloadParams {
   /**
-   * An ArrayBuffer or typed array containing the contents of the FXR file.
+   * An FXR object, or an ArrayBuffer or ArrayBufferView containing the
+   * contents of the FXR file.
    */
-  buffer: ArrayBuffer | ArrayBufferView
+  fxr: ArrayBuffer | ArrayBufferView | FXRLike
   /**
    * If set to true, this will disable the resident SFX on a {@link weapon}
    * for a short time and then enable it again, effectively respawning the SFX.
@@ -723,13 +728,22 @@ function getFXRID(buffer: ArrayBuffer | ArrayBufferView) {
   return dv.getInt32(12, true)
 }
 
+const EldenRingGameValue = 2
+function toBuffer(fxr: ArrayBuffer | ArrayBufferView | FXRLike) {
+  return fxr instanceof ArrayBuffer || ArrayBuffer.isView(fxr) ?
+    fxr :
+    fxr.toArrayBuffer(EldenRingGameValue)
+}
+
 async function reload(ws: WSLikeWebSocket, {
-  buffer,
+  fxr,
   respawn,
   wait = 100,
   weapon = Weapon.ShortSword,
   dummyPoly = 120
 }: ReloadParams) {
+  const buffer = toBuffer(fxr)
+
   // Reload the FXR
   await request(ws, {
     type: RequestType.ReloadFXR,
@@ -770,12 +784,13 @@ export async function setParams(
 
 export async function reloadLanternFXR(
   WebSocketClass: WSLikeWebSocketConstructor,
-  buffer: ArrayBuffer | ArrayBufferView,
+  fxr: ArrayBuffer | ArrayBufferView | FXRLike,
   dummyPoly: number = 160,
   portOrURL?: number | string,
 ) {
+  const buffer = toBuffer(fxr)
   const reloader = await connect(WebSocketClass, portOrURL)
-  await reloader.reload({ buffer })
+  await reloader.reload({ fxr: buffer })
   const lanternSpEffectID = 3245
   const row = await reloader.getParamRow('SpEffectParam', lanternSpEffectID)
   await reloader.setParams({
@@ -805,7 +820,7 @@ export async function reloadLanternFXR(
 
 export default async function(
   WebSocketClass: WSLikeWebSocketConstructor,
-  buffer: ArrayBuffer | ArrayBufferView,
+  fxr: ArrayBuffer | ArrayBufferView | FXRLike,
   respawn?: boolean,
   weapon?: number,
   dummyPoly?: number,
@@ -813,7 +828,7 @@ export default async function(
 ) {
   const reloader = await connect(WebSocketClass, portOrURL)
   await reloader.reload({
-    buffer,
+    fxr,
     respawn,
     weapon,
     dummyPoly,

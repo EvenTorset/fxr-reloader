@@ -2,13 +2,26 @@
 
 import fs from 'node:fs/promises'
 
-import { default as reloadFXR, Weapon } from './node.js'
+import reloadFXR, { Affinity, Weapon } from './node.js'
 
 const fileName = process.argv[2]
 const respawn = process.argv.length > 3
-const weapon = typeof process.argv[3] === 'string' ?
-  process.argv[3].match(/^\d+$/) ? parseInt(process.argv[3]) : Weapon[process.argv[3]] :
-  undefined
+
+let weapon: number | undefined
+const weaponArg = process.argv[3]
+if (typeof weaponArg === 'string') {
+  if (/^\d+$/.test(weaponArg)) {
+    weapon = parseInt(weaponArg)
+  } else {
+    if (weaponArg.includes('+')) {
+      const s = weaponArg.split('+')
+      weapon = Weapon[s[0]] + Affinity[s[1]]
+    } else {
+      weapon = Weapon[weaponArg]
+    }
+  }
+}
+
 const dummyPoly = typeof process.argv[4] === 'string' ?
   parseInt(process.argv[4]) :
   undefined
