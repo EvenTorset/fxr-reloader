@@ -45,8 +45,8 @@ export function setParams(
 /**
  * Reloads an FXR and respawns the lantern SpEffectVfx and updates its
  * midstSfxId.
- * @param buffer An ArrayBuffer or ArrayBufferView containing the contents of
- * the FXR file.
+ * @param fxr An FXR object, or an ArrayBuffer or ArrayBufferView containing
+ * the contents of the FXR file.
  * @param dummyPoly The ID of the dummy poly to attach the SFX to.
  * 
  * **Default**: 160
@@ -55,11 +55,11 @@ export function setParams(
  * will just replace the port number.
  */
 export function reloadLanternFXR(
-  buffer: ArrayBuffer | ArrayBufferView,
+  fxr: ArrayBuffer | ArrayBufferView | core.FXRLike,
   dummyPoly?: number,
   portOrURL?: number | string,
 ) {
-  return core.reloadLanternFXR(WSLikeWebSocket, buffer, dummyPoly, portOrURL)
+  return core.reloadLanternFXR(WSLikeWebSocket, fxr, dummyPoly, portOrURL)
 }
 
 /**
