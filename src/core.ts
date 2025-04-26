@@ -685,7 +685,7 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
         request(obj) { return request(ws, obj) },
         async reload(opts) {
           if (isSingleReloadParams(opts)) {
-            const buffer = await toBuffer(opts.fxrs, game)
+            const buffer = toBuffer(opts.fxrs, game)
             await request(ws, {
               type: RequestType.ReloadFXRs,
               fxrs: [ await bufferToBase64(buffer) ]
@@ -702,7 +702,7 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
           } else {
             await request(ws, {
               type: RequestType.ReloadFXRs,
-              fxrs: await Promise.all(opts.fxrs.map(async fxr => bufferToBase64(await toBuffer(fxr, game))))
+              fxrs: await Promise.all(opts.fxrs.map(async fxr => bufferToBase64(toBuffer(fxr, game))))
             })
           }
         },
@@ -784,7 +784,7 @@ const games = {
   EldenRing: 2,
   ArmoredCore6: 3,
 }
-async function toBuffer(fxr: ArrayBuffer | ArrayBufferView | FXRLike, game: GameName) {
+function toBuffer(fxr: ArrayBuffer | ArrayBufferView | FXRLike, game: GameName) {
   if (fxr instanceof ArrayBuffer || ArrayBuffer.isView(fxr)) {
     return fxr
   } else {
@@ -809,7 +809,7 @@ export async function reloadLanternFXR(
   portOrURL?: number | string,
 ) {
   const reloader = await connect(WebSocketClass, portOrURL)
-  const buffer = await toBuffer(fxr, reloader.game)
+  const buffer = toBuffer(fxr, reloader.game)
   await reloader.reload({ fxrs: buffer })
   await reloader.setSpEffectSFX(3245, getFXRID(buffer), dummyPoly)
   reloader.ws.close()
