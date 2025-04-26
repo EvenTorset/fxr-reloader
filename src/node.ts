@@ -14,22 +14,6 @@ export function connect(portOrURL: number | string = 24621) {
 }
 
 /**
- * Updates a list of params with new field values for any number of rows.
- * @param params Object where the keys are param names and the values are
- * objects where the keys are row IDs and the values are objects where the keys
- * are field names and the values are field values.
- * @param portOrURL The port number or URL string to connect to. By default, it
- * will try to connect to `ws://localhost:24621`, and setting only the port
- * will just replace the port number.
- */
-export function setParams(
-  params: core.Params,
-  portOrURL?: number | string,
-) {
-  return core.setParams(WebSocket, params, portOrURL)
-}
-
-/**
  * Reloads an FXR and respawns the lantern SpEffectVfx and updates its
  * midstSfxId.
  * @param fxr An FXR object, or an ArrayBuffer or ArrayBufferView containing
@@ -79,8 +63,25 @@ export default function reloadFXR(
   weapon?: number,
   dummyPoly?: number,
   portOrURL?: number | string,
-) {
-  return core.default(WebSocket, fxr, respawn, weapon, dummyPoly, portOrURL)
+): Promise<void>;
+
+/**
+ * Reload multiple FXRs.
+ * @param fxr An array of FXR objects, or ArrayBuffers or ArrayBufferViews
+ * containing the contents of FXR files.
+ */
+export default function reloadFXR(
+  fxrs: (ArrayBuffer | ArrayBufferView | core.FXRLike)[]
+): Promise<void>;
+
+export default function reloadFXR(
+  fxrs: ArrayBuffer | ArrayBufferView | core.FXRLike | (ArrayBuffer | ArrayBufferView | core.FXRLike)[],
+  respawn?: boolean,
+  weapon?: number,
+  dummyPoly?: number,
+  portOrURL?: number | string,
+): Promise<void> {
+  return core.default(WebSocket, fxrs, respawn, weapon, dummyPoly, portOrURL)
 }
 
 export { reloadFXR }
@@ -88,13 +89,15 @@ export { reloadFXR }
 export {
   Weapon,
   Affinity,
+  GameName,
   RequestType,
   ReloaderResponse,
+  ReloaderError,
+  SingleReloadParams,
+  MultiReloadParams,
   ReloadParams,
   WSLikeWebSocket,
   WSLikeWebSocketConstructor,
-  Params,
-  ParamRow,
   FXRReloader,
   FXRLike,
   request,

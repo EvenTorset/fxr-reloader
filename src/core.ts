@@ -512,30 +512,46 @@ export enum Affinity {
 }
 
 export enum RequestType {
-  ReloadFXR = 0,
-  SetResidentSFX = 1,
-  SetParams = 2,
-  ListParams = 3,
-  ListRows = 4,
-  GetParamRow = 5,
+  ReloadFXRs,
+  SetResidentSFX,
+  SetSpEffectSFX,
+}
+
+const reqTypeMap: Record<RequestType, string> = {
+  [RequestType.ReloadFXRs]: 'reload_fxrs',
+  [RequestType.SetResidentSFX]: 'set_resident_sfx',
+  [RequestType.SetSpEffectSFX]: 'set_sp_effect_sfx',
 }
 
 export type ReloaderResponse = {
-  requestID: string
-  status: string
+  request_id: string
+  success: boolean
+  message: string
   data?: any
 }
+
+export type GameName =
+  | 'EldenRing'
+  | 'ArmoredCore6'
 
 export interface FXRLike {
   toArrayBuffer(game: number): ArrayBuffer
 }
 
-export interface ReloadParams {
+export interface MultiReloadParams {
   /**
-   * An FXR object, or an ArrayBuffer or ArrayBufferView containing the
-   * contents of the FXR file.
+   * An array of FXR objects, ArrayBuffers or ArrayBufferViews containing the
+   * contents of the FXR files to reload.
    */
-  fxr: ArrayBuffer | ArrayBufferView | FXRLike
+  fxrs: (ArrayBuffer | ArrayBufferView | FXRLike)[]
+}
+
+export interface SingleReloadParams {
+  /**
+   * An FXR objects, ArrayBuffer or ArrayBufferView containing the contents of
+   * the FXR file to reload.
+   */
+  fxrs: ArrayBuffer | ArrayBufferView | FXRLike
   /**
    * If set to true, this will disable the resident SFX on a {@link weapon}
    * for a short time and then enable it again, effectively respawning the SFX.
@@ -559,18 +575,12 @@ export interface ReloadParams {
    * **Default**: 206
    */
   dummyPoly?: number
-  /**
-   * When {@link respawn} is enabled, this is the number of milliseconds to
-   * wait after disabling the resident SFX before setting it back to the SFX
-   * ID.
-   * 
-   * **Default**: 100
-   */
-  wait?: number
 }
 
+export type ReloadParams = SingleReloadParams | MultiReloadParams
+
 export interface WSLikeWebSocket {
-  on(type: keyof WebSocketEventMap, listener: (data: string) => void): void
+  on(type: 'open' | 'message' | 'close', listener: (data: string) => void): void
   on(type: 'error', listener: (err: any) => void): void
   send(msg: string): void
   close(): void
@@ -580,47 +590,44 @@ export interface WSLikeWebSocketConstructor {
   new(url: string): WSLikeWebSocket
 }
 
-export type Params = {
-  [param: string]: {
-    [row: string]: ParamRow
-  }
-}
-
-export type ParamRow = {
-  [field: string]: number | boolean
-}
-
 export type FXRReloader = {
   /**
    * A WebSocket connected to fxr-ws-reloader.dll.
    */
   readonly ws: WSLikeWebSocket
   /**
-   * Makes a request to fxr-ws-reloader.dll to do something. This is used
-   * internally to make the necessary requests to reload FXRs.
+   * The version number of fxr-ws-reloader.dll that the WebSocket is connected
+   * to.
    */
-  request(obj: any): Promise<void>
+  readonly version: string
   /**
-   * Reload an FXR, and optionally respawn it as a resident SFX of a given
-   * weapon.
+   * The game that the WebSocket is connected to.
+   */
+  readonly game: GameName
+  /**
+   * Make a request to fxr-ws-reloader.dll to do something. This is used
+   * internally to make the necessary requests to the server.
+   */
+  request(obj: any): Promise<ReloaderResponse>
+  /**
+   * Reload one or more FXRs, and optionally respawn it as a resident SFX of a
+   * given weapon if it's only one.
    */
   reload(obj: ReloadParams): Promise<void>
   /**
-   * Updates a list of params with new field values for any number of rows.
+   * Set the resident SFX for a weapon.
    */
-  setParams(params: Params): Promise<void>
+  setResidentSFX(weapon: Weapon | number, sfx: number, dmy?: number): Promise<ReloaderResponse>
   /**
-   * Resolves with a list of all param names.
+   * Set the midst SFX for a SpEffect.
    */
-  listParams(): Promise<string[]>
-  /**
-   * Resolves with a list of all row IDs in the given param.
-   */
-  listRows(param: string): Promise<number[]>
-  /**
-   * Resolves with an entire param row as a JSON object.
-   */
-  getParamRow(param: string, row: number): Promise<ParamRow>
+  setSpEffectSFX(spEffect: number, sfx: number, dmy?: number, vfx?: number): Promise<ReloaderResponse>
+}
+
+export class ReloaderError extends Error {
+  constructor(public type: 'connection' | 'request' | 'response', message: string) {
+    super(message)
+  }
 }
 
 const requestMap = new Map<string, (res: ReloaderResponse) => void>
@@ -630,45 +637,90 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
     `ws://localhost:${portOrURL}` :
     portOrURL
   const ws = new WebSocketClass(url)
-  ws.on('message', (data: string) => {
-    const res: ReloaderResponse = JSON.parse(data)
-    if (requestMap.has(res.requestID)) {
-      ;(requestMap.get(res.requestID) as (res: ReloaderResponse) => void)(res)
-      requestMap.delete(res.requestID)
-    }
-  })
-  return new Promise<FXRReloader>((fulfil, reject) => {
+  return new Promise<FXRReloader>(async (fulfil, reject) => {
     ws.on('error', (err: any) => {
-      const message = [
+      reject(new ReloaderError('connection', [
         'Failed to connect to WebSocket server!',
         'Is the game running, and is the DLL mod installed?'
-      ].join(' ')
-      console.error(message)
-      reject(new Error(message))
+      ].join(' ')))
     })
-    ws.on('open', () => {
+    const {
+      promise: siPromise,
+      resolve: siFulfil,
+      reject: siReject
+    } = Promise.withResolvers<{
+      type: 'server_info',
+      version: string,
+      game: GameName,
+    }>()
+    let hasReceivedInfo = false
+    ws.on('message', (data: string) => {
+      try {
+        const res: ReloaderResponse = JSON.parse(data)
+        if (!hasReceivedInfo && (res as any).type !== 'server_info') {
+          siReject(new ReloaderError('response', `Server did not send server information first.`))
+          return
+        }
+        if (!('request_id' in res)) {
+          if (!hasReceivedInfo && (res as any).type === 'server_info') {
+            hasReceivedInfo = true
+            siFulfil(res)
+            return
+          }
+          reject(new ReloaderError('response', `Response missing request ID: ${data}`))
+        } else if (requestMap.has(res.request_id)) {
+          ;(requestMap.get(res.request_id) as (res: ReloaderResponse) => void)(res)
+          requestMap.delete(res.request_id)
+        }
+      } catch (err) {
+        reject(new ReloaderError('response', `Failed to parse response: ${data}`))
+      }
+    })
+    ws.on('open', async () => {
+      const { version, game } = await siPromise
       fulfil({
-        ws,
+        get ws() { return ws },
+        get version() { return version },
+        get game() { return game },
         request(obj) { return request(ws, obj) },
-        reload(obj) { return reload(ws, obj) },
-        setParams(params: Params) {
+        async reload(opts) {
+          if (isSingleReloadParams(opts)) {
+            const buffer = await toBuffer(opts.fxrs, game)
+            await request(ws, {
+              type: RequestType.ReloadFXRs,
+              fxrs: [ await bufferToBase64(buffer) ]
+            })
+
+            if (opts.respawn) {
+              await request(ws, {
+                type: RequestType.SetResidentSFX,
+                weapon: opts.weapon ?? Weapon.ShortSword,
+                sfx: getFXRID(buffer),
+                dmy: opts.dummyPoly ?? 120,
+              })
+            }
+          } else {
+            await request(ws, {
+              type: RequestType.ReloadFXRs,
+              fxrs: await Promise.all(opts.fxrs.map(async fxr => bufferToBase64(await toBuffer(fxr, game))))
+            })
+          }
+        },
+        setResidentSFX(weapon: Weapon | number, sfx: number, dmy?: number) {
           return request(ws, {
-            type: RequestType.SetParams,
-            params,
+            type: RequestType.SetResidentSFX,
+            weapon,
+            sfx,
+            dmy,
           })
         },
-        listParams() { return request(ws, { type: RequestType.ListParams })},
-        listRows(param: string) {
+        setSpEffectSFX(spEffect: number, sfx: number, dmy?: number, vfx?: number) {
           return request(ws, {
-            type: RequestType.ListRows,
-            param
-          })
-        },
-        getParamRow(param, row) {
-          return request(ws, {
-            type: RequestType.GetParamRow,
-            param,
-            row
+            type: RequestType.SetSpEffectSFX,
+            spEffect,
+            sfx,
+            dmy,
+            vfx,
           })
         },
       })
@@ -685,21 +737,21 @@ function randomString(length: number) {
 }
 
 /**
- * Makes a request to fxr-ws-reloader.dll to do something. This is used
- * internally to make the necessary requests to reload FXRs.
+ * Make a request to fxr-ws-reloader.dll to do something. This is used
+ * internally to make the necessary requests to the server.
  */
 export function request(ws: WSLikeWebSocket, obj: any) {
   let id = randomString(32)
   while (requestMap.has(id)) {
     id = randomString(32)
   }
-  ws.send(JSON.stringify(Object.assign({}, obj, { requestID: id })))
-  return new Promise<any>((fulfil, reject) =>
+  ws.send(JSON.stringify(Object.assign({}, obj, { request_id: id, type: reqTypeMap[obj.type] })))
+  return new Promise<ReloaderResponse>((fulfil, reject) =>
     requestMap.set(id, (res: ReloaderResponse) => {
-      if (res.status === 'success') {
-        fulfil(res.data)
+      if (res.success) {
+        fulfil(res)
       } else {
-        reject(res.status)
+        reject(new ReloaderError('request', res.message))
       }
     })
   )
@@ -728,58 +780,26 @@ function getFXRID(buffer: ArrayBuffer | ArrayBufferView) {
   return dv.getInt32(12, true)
 }
 
-const EldenRingGameValue = 2
-function toBuffer(fxr: ArrayBuffer | ArrayBufferView | FXRLike) {
-  return fxr instanceof ArrayBuffer || ArrayBuffer.isView(fxr) ?
-    fxr :
-    fxr.toArrayBuffer(EldenRingGameValue)
+const games = {
+  EldenRing: 2,
+  ArmoredCore6: 3,
 }
-
-async function reload(ws: WSLikeWebSocket, {
-  fxr,
-  respawn,
-  wait = 100,
-  weapon = Weapon.ShortSword,
-  dummyPoly = 120
-}: ReloadParams) {
-  const buffer = toBuffer(fxr)
-
-  // Reload the FXR
-  await request(ws, {
-    type: RequestType.ReloadFXR,
-    file: await bufferToBase64(buffer)
-  })
-
-  if (respawn) {
-    // Remove the weapon's resident SFX
-    await request(ws, {
-      type: RequestType.SetResidentSFX,
-      weapon,
-      sfx: -1,
-      dmy: -1,
-    })
-
-    // Wait for a short while before setting the SFX ID
-    await new Promise(f => setTimeout(f, wait))
-
-    // Set the resident SFX ID to the ID in the FXR
-    await request(ws, {
-      type: RequestType.SetResidentSFX,
-      weapon,
-      sfx: getFXRID(buffer),
-      dmy: dummyPoly,
-    })
+async function toBuffer(fxr: ArrayBuffer | ArrayBufferView | FXRLike, game: GameName) {
+  if (fxr instanceof ArrayBuffer || ArrayBuffer.isView(fxr)) {
+    return fxr
+  } else {
+    return fxr.toArrayBuffer(games[game])
   }
 }
 
-export async function setParams(
-  WebSocketClass: WSLikeWebSocketConstructor,
-  params: Params,
-  portOrURL?: number | string,
-) {
-  const reloader = await connect(WebSocketClass, portOrURL)
-  await reloader.setParams(params)
-  reloader.ws.close()
+function isSingleFXR(
+  fxr: ArrayBuffer | ArrayBufferView | FXRLike | (ArrayBuffer | ArrayBufferView | FXRLike)[]
+): fxr is ArrayBuffer | ArrayBufferView | FXRLike {
+  return fxr instanceof ArrayBuffer || ArrayBuffer.isView(fxr) || !Array.isArray(fxr)
+}
+
+function isSingleReloadParams(opts: ReloadParams): opts is SingleReloadParams {
+  return isSingleFXR(opts.fxrs)
 }
 
 export async function reloadLanternFXR(
@@ -788,50 +808,31 @@ export async function reloadLanternFXR(
   dummyPoly: number = 160,
   portOrURL?: number | string,
 ) {
-  const buffer = toBuffer(fxr)
   const reloader = await connect(WebSocketClass, portOrURL)
-  await reloader.reload({ fxr: buffer })
-  const lanternSpEffectID = 3245
-  const row = await reloader.getParamRow('SpEffectParam', lanternSpEffectID)
-  await reloader.setParams({
-    SpEffectParam: {
-      [lanternSpEffectID]: {
-        vfxId: -1,
-        vfxId1: -1,
-      }
-    },
-    SpEffectVfxParam: {
-      [row.vfxId as number]: {
-        midstSfxId: getFXRID(buffer),
-        midstDmyId: dummyPoly,
-      }
-    }
-  })
-  await new Promise(f => setTimeout(f, 100))
-  await reloader.setParams({
-    SpEffectParam: {
-      [lanternSpEffectID]: {
-        vfxId: row.vfxId,
-      }
-    }
-  })
+  const buffer = await toBuffer(fxr, reloader.game)
+  await reloader.reload({ fxrs: buffer })
+  await reloader.setSpEffectSFX(3245, getFXRID(buffer), dummyPoly)
   reloader.ws.close()
 }
 
 export default async function(
   WebSocketClass: WSLikeWebSocketConstructor,
-  fxr: ArrayBuffer | ArrayBufferView | FXRLike,
+  fxrs: ArrayBuffer | ArrayBufferView | FXRLike | (ArrayBuffer | ArrayBufferView | FXRLike)[],
   respawn?: boolean,
   weapon?: number,
   dummyPoly?: number,
   portOrURL?: number | string,
-) {
+): Promise<void> {
   const reloader = await connect(WebSocketClass, portOrURL)
-  await reloader.reload({
-    fxr,
-    respawn,
-    weapon,
-    dummyPoly,
-  })
+  if (isSingleFXR(fxrs)) {
+    await reloader.reload({
+      fxrs,
+      respawn,
+      weapon,
+      dummyPoly,
+    })
+  } else {
+    await reloader.reload({ fxrs })
+  }
   reloader.ws.close()
 }

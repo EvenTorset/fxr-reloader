@@ -9,12 +9,13 @@
   "exports": {
     ".": {
       "types": "./dist/node.d.ts",
+      "browser": "./dist/web.js",
       "default": "./dist/node.js"
-    },
-    "./web": {
-      "types": "./dist/web.d.ts",
-      "default": "./dist/web.js"
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
   },
   "keywords": [
     "elden-ring",
@@ -35,14 +36,14 @@
   "author": "CCCode",
   "license": "Unlicense",
   "devDependencies": {
-    "@types/node": "^20.14.9",
-    "@types/ws": "^8.5.10",
-    "typescript": "^5.5.2"
+    "@types/node": "^22.14.1",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.8.3"
   },
   "dependencies": {
-    "ws": "^8.17.1"
+    "ws": "^8.18.1"
   },
   "optionalDependencies": {
-    "bufferutil": "^4.0.8"
+    "bufferutil": "^4.0.9"
   }
 }
