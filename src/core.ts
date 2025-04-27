@@ -810,7 +810,10 @@ export async function reloadLanternFXR(
 ) {
   const reloader = await connect(WebSocketClass, portOrURL)
   const buffer = toBuffer(fxr, reloader.game)
-  await reloader.reload({ fxrs: buffer })
+  await reloader.request({
+    type: RequestType.ReloadFXRs,
+    fxrs: [ await bufferToBase64(buffer) ]
+  })
   await reloader.setSpEffectSFX(3245, getFXRID(buffer), dummyPoly)
   reloader.ws.close()
 }
