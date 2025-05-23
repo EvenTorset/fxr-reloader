@@ -3,7 +3,7 @@
     "declaration": true,
     "sourceMap": true,
     "target": "ES2022",
-    "lib": ["ES2024", "DOM"],
+    "lib": ["ESNext", "DOM"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",

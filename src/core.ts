@@ -515,12 +515,16 @@ export enum RequestType {
   ReloadFXRs,
   SetResidentSFX,
   SetSpEffectSFX,
+  GetFXR,
+  ListFXRs,
 }
 
 const reqTypeMap: Record<RequestType, string> = {
   [RequestType.ReloadFXRs]: 'reload_fxrs',
   [RequestType.SetResidentSFX]: 'set_resident_sfx',
   [RequestType.SetSpEffectSFX]: 'set_sp_effect_sfx',
+  [RequestType.GetFXR]: 'get_fxr',
+  [RequestType.ListFXRs]: 'list_fxrs',
 }
 
 export type ReloaderResponse = {
@@ -622,6 +626,14 @@ export type FXRReloader = {
    * Set the midst SFX for a SpEffect.
    */
   setSpEffectSFX(spEffect: number, sfx: number, dmy?: number, vfx?: number): Promise<ReloaderResponse>
+  /**
+   * Get an FXR from the game as an array of bytes.
+   */
+  getFXR(id: number): Promise<Uint8Array>
+  /**
+   * Get a list of all loaded FXR IDs.
+   */
+  listFXRs(): Promise<number[]>
 }
 
 export class ReloaderError extends Error {
@@ -723,6 +735,19 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
             vfx,
           })
         },
+        async getFXR(id) {
+          const res = await request(ws, {
+            type: RequestType.GetFXR,
+            id,
+          })
+          return bufferFromBase64(res.data.fxr)
+        },
+        async listFXRs() {
+          const res = await request(ws, {
+            type: RequestType.ListFXRs
+          })
+          return res.data.fxrs
+        },
       })
     })
   })
@@ -757,19 +782,44 @@ export function request(ws: WSLikeWebSocket, obj: any) {
   )
 }
 
-async function bufferToBase64(buffer: ArrayBuffer | ArrayBufferView) {
-  try {
+async function bufferToBase64(buffer: ArrayBuffer | ArrayBufferView): Promise<string> {
+  if ('toBase64' in Uint8Array.prototype && typeof Uint8Array.prototype.toBase64 === 'function') {
+    return (new Uint8Array(
+      ArrayBuffer.isView(buffer) ?
+        buffer.buffer :
+        buffer
+    ) as any).toBase64()
+  }
+
+  if (typeof Buffer !== 'undefined') {
     if (ArrayBuffer.isView(buffer)) {
       return Buffer.from(buffer.buffer).toString('base64')
     }
     return Buffer.from(buffer).toString('base64')
-  } catch {
+  } else {
     const base64url = await new Promise<string>(fulfil => {
       const reader = new FileReader()
       reader.onload = () => fulfil(reader.result as string)
       reader.readAsDataURL(new Blob([ buffer ]))
     })
     return base64url.slice(base64url.indexOf(',') + 1)
+  }
+}
+
+async function bufferFromBase64(base64: string): Promise<Uint8Array> {
+  if ('fromBase64' in Uint8Array && typeof Uint8Array.fromBase64 === 'function') {
+    return Uint8Array.fromBase64(base64)
+  }
+
+  if (typeof Buffer !== 'undefined') {
+    const buf = Buffer.from(base64, 'base64')
+    const arr = new Uint8Array(buf.length)
+    arr.set(buf)
+    return arr
+  } else {
+    return new Uint8Array(
+      await fetch(`data:application/octet-stream;base64,${base64}`).then(e => e.arrayBuffer()) as ArrayBuffer
+    )
   }
 }
 
@@ -816,6 +866,27 @@ export async function reloadLanternFXR(
   })
   await reloader.setSpEffectSFX(3245, getFXRID(buffer), dummyPoly)
   reloader.ws.close()
+}
+
+export async function getFXR(
+  WebSocketClass: WSLikeWebSocketConstructor,
+  id: number,
+  portOrURL?: number | string
+) {
+  const reloader = await connect(WebSocketClass, portOrURL)
+  const fxr = await reloader.getFXR(id)
+  reloader.ws.close()
+  return fxr
+}
+
+export async function listFXRs(
+  WebSocketClass: WSLikeWebSocketConstructor,
+  portOrURL?: number | string
+) {
+  const reloader = await connect(WebSocketClass, portOrURL)
+  const ids = await reloader.listFXRs()
+  reloader.ws.close()
+  return ids
 }
 
 export default async function(

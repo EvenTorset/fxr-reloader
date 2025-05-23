@@ -86,6 +86,14 @@ export default function reloadFXR(
 
 export { reloadFXR }
 
+export function getFXR(id: number, portOrURL?: number | string) {
+  return core.getFXR(WebSocket, id, portOrURL)
+}
+
+export function listFXRs(portOrURL?: number | string) {
+  return core.listFXRs(WebSocket, portOrURL)
+}
+
 export {
   Weapon,
   Affinity,
