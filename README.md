@@ -19,14 +19,13 @@ import { BasicNode, BillboardEx, FXR, Game } from '@cccode/fxr'
 import reloadFXR, { Weapon, Affinity } from 'fxr-reloader'
 
 // Use @cccode/fxr to create a new FXR with a big red square
-const fxr = new FXR(402030)
-fxr.root.nodes = [
+const fxr = new FXR(1, true, [
   new BasicNode([
     new BillboardEx({
       color1: [1, 0, 0, 1]
     })
   ])
-]
+])
 
 // Reload the FXR and respawn it by attaching it to the Short Sword (with
 // standard affinity) at dummy poly 120
@@ -39,6 +38,10 @@ await reloadFXR(fxr, true)
 You can also just reload the effect without respawning it:
 ```js
 await reloadFXR(fxr)
+```
+Multiple FXR files can be reloaded at once by passing an array of FXR objects:
+```js
+await reloadFXR([fxr1, fxr2, fxr3])
 ```
 If you also provide a port number or URL, it will try to connect to that WebSocket server instead of the default (ws://localhost:24621). The DLL mod's port can be changed by editing its JSON config file.
 ```js
@@ -57,11 +60,11 @@ If you need to use these functions, I recommend just checking out the source cod
 Here's a very brief overview of the named exports:
 - `Weapon`: An enum with IDs for all weapons in Elden Ring.
 - `Affinity`: An enum with ID offsets for all weapon affinities in Elden Ring.
-- `connect`: This function takes a port number or a URL string and uses that to try to connect to a WebSocket server. It returns a promise that resolves with a reloader object containing the WebSocket object, a request function, and a reload function.
-- `request`: This function makes a request to a given WebSocket. It automatically handles the request ID, and it returns a promise that resolves when it has received a response from the server. If the request did not succeed, the returned promise rejects with the status from the response.
+- `connect`: This function takes a port number or a URL string and uses that to try to connect to a WebSocket server. It returns a promise that resolves with a reloader object containing information about the reloader DLL and the game, as well as functions for interacting with the DLL.
 - `reloadFXR`: This is the same as the default export.
-- `reloadLanternFXR`: This function reloads an effect and respawns it by replacing the lantern effect instead of a weapon effect.
-- `setParams`: This function can be used to edit any game parameters live, similar to the param hot reload feature in DSMS/Smithbox.
+- `reloadLanternFXR`: Reloads an effect and respawns it by replacing the lantern effect instead of a weapon effect.
+- `getFXR`: Fetches an FXR file from the game's memory and returns it as a Uint8Array.
+- `listFXRs`: Lists all loaded FXR files in the game's memory by their ID.
 
 ## Command line
 This package also provides a command that can reload an FXR file:

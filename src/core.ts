@@ -590,7 +590,7 @@ export interface WSLikeWebSocket {
   close(): void
 }
 
-export interface WSLikeWebSocketConstructor {
+interface WSLikeWebSocketConstructor {
   new(url: string): WSLikeWebSocket
 }
 
@@ -644,7 +644,7 @@ export class ReloaderError extends Error {
 
 const requestMap = new Map<string, (res: ReloaderResponse) => void>
 
-export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: number | string = 24621) {
+function int_connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: number | string = 24621) {
   const url = typeof portOrURL === 'number' ?
     `ws://localhost:${portOrURL}` :
     portOrURL
@@ -694,17 +694,17 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
         get ws() { return ws },
         get version() { return version },
         get game() { return game },
-        request(obj) { return request(ws, obj) },
+        request(obj) { return int_request(ws, obj) },
         async reload(opts) {
           if (isSingleReloadParams(opts)) {
             const buffer = toBuffer(opts.fxrs, game)
-            await request(ws, {
+            await int_request(ws, {
               type: RequestType.ReloadFXRs,
               fxrs: [ await bufferToBase64(buffer) ]
             })
 
             if (opts.respawn) {
-              await request(ws, {
+              await int_request(ws, {
                 type: RequestType.SetResidentSFX,
                 weapon: opts.weapon ?? Weapon.ShortSword,
                 sfx: getFXRID(buffer),
@@ -712,14 +712,14 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
               })
             }
           } else {
-            await request(ws, {
+            await int_request(ws, {
               type: RequestType.ReloadFXRs,
               fxrs: await Promise.all(opts.fxrs.map(async fxr => bufferToBase64(toBuffer(fxr, game))))
             })
           }
         },
         setResidentSFX(weapon: Weapon | number, sfx: number, dmy?: number) {
-          return request(ws, {
+          return int_request(ws, {
             type: RequestType.SetResidentSFX,
             weapon,
             sfx,
@@ -727,7 +727,7 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
           })
         },
         setSpEffectSFX(spEffect: number, sfx: number, dmy?: number, vfx?: number) {
-          return request(ws, {
+          return int_request(ws, {
             type: RequestType.SetSpEffectSFX,
             spEffect,
             sfx,
@@ -736,14 +736,14 @@ export function connect(WebSocketClass: WSLikeWebSocketConstructor, portOrURL: n
           })
         },
         async getFXR(id) {
-          const res = await request(ws, {
+          const res = await int_request(ws, {
             type: RequestType.GetFXR,
             id,
           })
           return bufferFromBase64(res.data.fxr)
         },
         async listFXRs() {
-          const res = await request(ws, {
+          const res = await int_request(ws, {
             type: RequestType.ListFXRs
           })
           return res.data.fxrs
@@ -765,7 +765,7 @@ function randomString(length: number) {
  * Make a request to fxr-ws-reloader.dll to do something. This is used
  * internally to make the necessary requests to the server.
  */
-export function request(ws: WSLikeWebSocket, obj: any) {
+function int_request(ws: WSLikeWebSocket, obj: any) {
   let id = randomString(32)
   while (requestMap.has(id)) {
     id = randomString(32)
@@ -852,13 +852,13 @@ function isSingleReloadParams(opts: ReloadParams): opts is SingleReloadParams {
   return isSingleFXR(opts.fxrs)
 }
 
-export async function reloadLanternFXR(
+async function int_reloadLanternFXR(
   WebSocketClass: WSLikeWebSocketConstructor,
   fxr: ArrayBuffer | ArrayBufferView | FXRLike,
   dummyPoly: number = 160,
   portOrURL?: number | string,
 ) {
-  const reloader = await connect(WebSocketClass, portOrURL)
+  const reloader = await int_connect(WebSocketClass, portOrURL)
   const buffer = toBuffer(fxr, reloader.game)
   await reloader.request({
     type: RequestType.ReloadFXRs,
@@ -868,28 +868,28 @@ export async function reloadLanternFXR(
   reloader.ws.close()
 }
 
-export async function getFXR(
+async function int_getFXR(
   WebSocketClass: WSLikeWebSocketConstructor,
   id: number,
   portOrURL?: number | string
 ) {
-  const reloader = await connect(WebSocketClass, portOrURL)
+  const reloader = await int_connect(WebSocketClass, portOrURL)
   const fxr = await reloader.getFXR(id)
   reloader.ws.close()
   return fxr
 }
 
-export async function listFXRs(
+async function int_listFXRs(
   WebSocketClass: WSLikeWebSocketConstructor,
   portOrURL?: number | string
 ) {
-  const reloader = await connect(WebSocketClass, portOrURL)
+  const reloader = await int_connect(WebSocketClass, portOrURL)
   const ids = await reloader.listFXRs()
   reloader.ws.close()
   return ids
 }
 
-export default async function(
+async function int_reloadFXR(
   WebSocketClass: WSLikeWebSocketConstructor,
   fxrs: ArrayBuffer | ArrayBufferView | FXRLike | (ArrayBuffer | ArrayBufferView | FXRLike)[],
   respawn?: boolean,
@@ -897,7 +897,7 @@ export default async function(
   dummyPoly?: number,
   portOrURL?: number | string,
 ): Promise<void> {
-  const reloader = await connect(WebSocketClass, portOrURL)
+  const reloader = await int_connect(WebSocketClass, portOrURL)
   if (isSingleFXR(fxrs)) {
     await reloader.reload({
       fxrs,
@@ -909,4 +909,106 @@ export default async function(
     await reloader.reload({ fxrs })
   }
   reloader.ws.close()
+}
+
+export default function createAPI(WebSocketClass: WSLikeWebSocketConstructor) {
+
+  /**
+   * Connects to a WebSocket server and sets up the necessary event handlers for
+   * reloading FXRs.
+   * @param portOrURL The port number or URL string to connect to. By default, it
+   * will try to connect to `ws://localhost:24621`, and setting only the port
+   * will just replace the port number.
+   */
+  function connect(portOrURL: number | string = 24621) {
+    return int_connect(WebSocketClass, portOrURL)
+  }
+
+  /**
+   * Reloads an FXR and respawns the lantern SpEffectVfx and updates its
+   * midstSfxId.
+   * @param fxr An FXR object, or an ArrayBuffer or ArrayBufferView containing
+   * the contents of the FXR file.
+   * @param dummyPoly The ID of the dummy poly to attach the SFX to.
+   * 
+   * **Default**: 160
+   * @param portOrURL The port number or URL string to connect to. By default, it
+   * will try to connect to `ws://localhost:24621`, and setting only the port
+   * will just replace the port number.
+   */
+  function reloadLanternFXR(
+    fxr: ArrayBuffer | ArrayBufferView | FXRLike,
+    dummyPoly?: number,
+    portOrURL?: number | string,
+  ) {
+    return int_reloadLanternFXR(WebSocketClass, fxr, dummyPoly, portOrURL)
+  }
+
+  /**
+   * Reload an FXR, and optionally respawn it as a resident SFX of a given
+   * weapon.
+   * @param fxr An FXR object, or an ArrayBuffer or ArrayBufferView containing
+   * the contents of the FXR file.
+   * @param respawn If set to true, this will disable the resident SFX on a
+   * {@link weapon} for a short time and then enable it again, effectively
+   * respawning the SFX. This allows an SFX attached to a weapon to automatically
+   * update without manual interaction with the game.
+   * 
+   * **Default**: false
+   * @param weapon When {@link respawn} is enabled, this is the numerical ID for
+   * the weapon to change the resident SFX of. Use the {@link core.Weapon Weapon}
+   * and {@link core.Affinity Affinity} enums to select a weapon easily.
+   * 
+   * **Default**: {@link core.Weapon.ShortSword Weapon.ShortSword}
+   * @param dummyPoly When {@link respawn} is enabled, this is the ID of the
+   * dummy poly to attach the SFX to.
+   * 
+   * **Default**: 120
+   * @param portOrURL The port number or URL string to connect to. By default, it
+   * will try to connect to `ws://localhost:24621`, and setting only the port
+   * will just replace the port number.
+   */
+  function reloadFXR(
+    fxr: ArrayBuffer | ArrayBufferView | FXRLike,
+    respawn?: boolean,
+    weapon?: number,
+    dummyPoly?: number,
+    portOrURL?: number | string,
+  ): Promise<void>;
+
+  /**
+   * Reload multiple FXRs.
+   * @param fxr An array of FXR objects, or ArrayBuffers or ArrayBufferViews
+   * containing the contents of FXR files.
+   */
+  function reloadFXR(
+    fxrs: (ArrayBuffer | ArrayBufferView | FXRLike)[]
+  ): Promise<void>;
+
+  function reloadFXR(
+    fxrs: ArrayBuffer | ArrayBufferView | FXRLike | (ArrayBuffer | ArrayBufferView | FXRLike)[],
+    respawn?: boolean,
+    weapon?: number,
+    dummyPoly?: number,
+    portOrURL?: number | string,
+  ): Promise<void> {
+    return int_reloadFXR(WebSocketClass, fxrs, respawn, weapon, dummyPoly, portOrURL)
+  }
+
+  function getFXR(id: number, portOrURL?: number | string) {
+    return int_getFXR(WebSocketClass, id, portOrURL)
+  }
+
+  function listFXRs(portOrURL?: number | string) {
+    return int_listFXRs(WebSocketClass, portOrURL)
+  }
+
+  return {
+    connect,
+    reloadLanternFXR,
+    reloadFXR,
+    getFXR,
+    listFXRs,
+  }
+
 }
