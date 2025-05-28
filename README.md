@@ -63,7 +63,7 @@ Here's a very brief overview of the named exports:
 - `connect`: This function takes a port number or a URL string and uses that to try to connect to a WebSocket server. It returns a promise that resolves with a reloader object containing information about the reloader DLL and the game, as well as functions for interacting with the DLL.
 - `reloadFXR`: This is the same as the default export.
 - `reloadLanternFXR`: Reloads an effect and respawns it by replacing the lantern effect instead of a weapon effect.
-- `getFXR`: Fetches an FXR file from the game's memory and returns it as a Uint8Array.
+- `fetchFXR`: Fetches an FXR file from the game's memory and returns it as a Uint8Array.
 - `listFXRs`: Lists all loaded FXR files in the game's memory by their ID.
 
 ## Command line

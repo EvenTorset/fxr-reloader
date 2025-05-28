@@ -9,8 +9,7 @@
     "outDir": "dist",
   },
   "files": [
-    "src/node.ts",
-    "src/web.ts",
+    "src/reloader.ts",
     "src/cli.ts",
   ],
 }

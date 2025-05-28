@@ -2,7 +2,7 @@
 
 import fs from 'node:fs/promises'
 
-import reloadFXR, { Affinity, Weapon } from './node.js'
+import reloadFXR, { Affinity, Weapon } from './reloader.js'
 
 const fileName = process.argv[2]
 const respawn = process.argv.length > 3
@@ -25,16 +25,15 @@ if (typeof weaponArg === 'string') {
 const dummyPoly = typeof process.argv[4] === 'string' ?
   parseInt(process.argv[4]) :
   undefined
-const portOrURL =
+const endpoint =
   typeof process.argv[5] === 'string' &&
   /^\d+$/.test(process.argv[5]) ?
     parseInt(process.argv[5]) :
     process.argv[5]
 
-await reloadFXR(
-  await fs.readFile(fileName),
+await reloadFXR(await fs.readFile(fileName), {
   respawn,
   weapon,
   dummyPoly,
-  portOrURL
-)
+  endpoint
+})

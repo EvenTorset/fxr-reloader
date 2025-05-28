@@ -6,11 +6,13 @@
   "bin": {
     "reload-fxr": "dist/cli.js"
   },
+  "engines": {
+    "node": ">=22.4.0"
+  },
   "exports": {
     ".": {
-      "types": "./dist/node.d.ts",
-      "browser": "./dist/web.js",
-      "default": "./dist/node.js"
+      "types": "./dist/reloader.d.ts",
+      "default": "./dist/reloader.js"
     }
   },
   "scripts": {
@@ -36,14 +38,7 @@
   "author": "CCCode",
   "license": "Unlicense",
   "devDependencies": {
-    "@types/node": "^22.15.21",
-    "@types/ws": "^8.18.1",
+    "@types/node": "^22.15.23",
     "typescript": "^5.8.3"
-  },
-  "dependencies": {
-    "ws": "^8.18.2"
-  },
-  "optionalDependencies": {
-    "bufferutil": "^4.0.9"
   }
 }
