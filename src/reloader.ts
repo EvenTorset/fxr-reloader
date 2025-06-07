@@ -537,6 +537,7 @@ export type ReloaderResponse = {
 export type GameName =
   | 'EldenRing'
   | 'ArmoredCore6'
+  | 'Nightreign'
 
 export interface FXRLike {
   toArrayBuffer(game: number): ArrayBuffer
@@ -583,6 +584,28 @@ export type FXRReloader = {
    * The game that the WebSocket is connected to.
    */
   readonly game: GameName
+  /**
+   * Support for different features of the reloader.
+   * | Feature | Description |
+   * |-|-|
+   * | `reload` | Allows FXRs to be reloaded. |
+   * | `params` | Allows params to be read or modified. |
+   * | `extract` | Allows FXRs to be listed or extracted. |
+   */
+  readonly features: {
+    /**
+     * Allows FXRs to be reloaded.
+     */
+    readonly reload: boolean,
+    /**
+     * Allows params to be read or modified.
+     */
+    readonly params: boolean,
+    /**
+     * Allows FXRs to be listed or extracted.
+     */
+    readonly extract: boolean,
+  }
   /**
    * Make a request to fxr-ws-reloader.dll to do something. This is used
    * internally to make the necessary requests to the server.
@@ -662,9 +685,14 @@ export function connect(endpoint: number | string = 24621) {
       resolve: siFulfil,
       reject: siReject
     } = Promise.withResolvers<{
-      type: 'server_info',
-      version: string,
-      game: GameName,
+      type: 'server_info'
+      version: string
+      game: GameName
+      features: {
+        reload: boolean
+        params: boolean
+        extract: boolean
+      }
     }>()
     let hasReceivedInfo = false
     ws.on('message', (data: string) => {
@@ -672,6 +700,9 @@ export function connect(endpoint: number | string = 24621) {
         const res: ReloaderResponse = JSON.parse(data)
         if (!hasReceivedInfo && (res as any).type !== 'server_info') {
           siReject(new ReloaderError('response', `Server did not send server information first.`))
+          return
+        } else if (!hasReceivedInfo && (res as any).type === 'server_info' && 'error' in res) {
+          siReject(new ReloaderError('response', `Connected, but the server reported an error: ${res.error}`))
           return
         }
         if (!('request_id' in res)) {
@@ -690,7 +721,8 @@ export function connect(endpoint: number | string = 24621) {
       }
     })
     ws.on('open', async () => {
-      const { version, game } = await siPromise
+      const { version, game, features } = await siPromise
+      Object.freeze(features)
       function reload(fxrs: (ArrayBuffer | ArrayBufferView | FXRLike)[]): Promise<void>
       function reload(fxr: ArrayBuffer | ArrayBufferView | FXRLike, options?: ReloadOptions): Promise<void>
       async function reload(
@@ -704,7 +736,7 @@ export function connect(endpoint: number | string = 24621) {
             fxrs: [ await bufferToBase64(buffer) ]
           })
 
-          if (options.respawn) {
+          if (options?.respawn) {
             await request(ws, {
               type: RequestType.SetResidentSFX,
               weapon: options.weapon ?? Weapon.ShortSword,
@@ -723,6 +755,7 @@ export function connect(endpoint: number | string = 24621) {
         get ws() { return ws },
         get version() { return version },
         get game() { return game },
+        get features() { return features },
         request(obj) { return request(ws, obj) },
         reload,
         setResidentSFX(weapon: Weapon | number, sfx: number, dmy?: number) {
@@ -828,6 +861,7 @@ function getFXRID(buffer: ArrayBuffer | ArrayBufferView) {
 const games = {
   EldenRing: 2,
   ArmoredCore6: 3,
+  Nightreign: 4,
 }
 function toBuffer(fxr: ArrayBuffer | ArrayBufferView | FXRLike, game: GameName) {
   if (fxr instanceof ArrayBuffer || ArrayBuffer.isView(fxr)) {
