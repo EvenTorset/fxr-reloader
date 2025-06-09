@@ -535,6 +535,8 @@ export type ReloaderResponse = {
 }
 
 export type GameName =
+  | 'DarkSouls3'
+  | 'Sekiro'
   | 'EldenRing'
   | 'ArmoredCore6'
   | 'Nightreign'
@@ -859,6 +861,8 @@ function getFXRID(buffer: ArrayBuffer | ArrayBufferView) {
 }
 
 const games = {
+  DarkSouls3: 0,
+  Sekiro: 1,
   EldenRing: 2,
   ArmoredCore6: 3,
   Nightreign: 4,
