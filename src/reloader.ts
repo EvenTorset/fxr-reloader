@@ -516,6 +516,7 @@ export enum RequestType {
   SetResidentSFX,
   SetSpEffectSFX,
   GetFXR,
+  GetFXRs,
   ListFXRs,
 }
 
@@ -524,6 +525,7 @@ const reqTypeMap: Record<RequestType, string> = {
   [RequestType.SetResidentSFX]: 'set_resident_sfx',
   [RequestType.SetSpEffectSFX]: 'set_sp_effect_sfx',
   [RequestType.GetFXR]: 'get_fxr',
+  [RequestType.GetFXRs]: 'get_fxrs',
   [RequestType.ListFXRs]: 'list_fxrs',
 }
 
@@ -609,6 +611,10 @@ export type FXRReloader = {
     readonly extract: boolean,
   }
   /**
+   * Close the WebSocket connection.
+   */
+  disconnect(): void
+  /**
    * Make a request to fxr-ws-reloader.dll to do something. This is used
    * internally to make the necessary requests to the server.
    */
@@ -631,13 +637,17 @@ export type FXRReloader = {
    */
   setSpEffectSFX(spEffect: number, sfx: number, dmy?: number, vfx?: number): Promise<ReloaderResponse>
   /**
-   * Get an FXR from the game as an array of bytes.
+   * Get a loaded FXR from the game as a byte array.
    */
-  fetchFXR(id: number): Promise<Uint8Array>
+  fetch(id: number): Promise<Uint8Array>
+  /**
+   * Get multiple loaded FXRs from the game as an array of byte arrays.
+   */
+  fetch(ids: number[]): Promise<(Uint8Array | null)[]>
   /**
    * Get a list of all loaded FXR IDs.
    */
-  listFXRs(): Promise<number[]>
+  list(): Promise<number[]>
 }
 
 export class ReloaderError extends Error {
@@ -753,11 +763,29 @@ export function connect(endpoint: number | string = 24621) {
           })
         }
       }
+      function fetch(id: number): Promise<Uint8Array>
+      function fetch(ids: number[]): Promise<(Uint8Array | null)[]>
+      async function fetch(ids: number | number[]) {
+        if (typeof ids === 'number') {
+          const res = await request(ws, {
+            type: RequestType.GetFXR,
+            id: ids,
+          })
+          return bufferFromBase64(res.data.fxr)
+        } else {
+          const res = await request(ws, {
+            type: RequestType.GetFXRs,
+            ids,
+          })
+          return Promise.all(res.data.fxrs.map((b64: string | null) => b64 === null ? null : bufferFromBase64(b64)))
+        }
+      }
       fulfil({
         get ws() { return ws },
         get version() { return version },
         get game() { return game },
         get features() { return features },
+        disconnect() { ws.close() },
         request(obj) { return request(ws, obj) },
         reload,
         setResidentSFX(weapon: Weapon | number, sfx: number, dmy?: number) {
@@ -777,14 +805,8 @@ export function connect(endpoint: number | string = 24621) {
             vfx,
           })
         },
-        async fetchFXR(id) {
-          const res = await request(ws, {
-            type: RequestType.GetFXR,
-            id,
-          })
-          return bufferFromBase64(res.data.fxr)
-        },
-        async listFXRs() {
+        fetch,
+        async list() {
           const res = await request(ws, {
             type: RequestType.ListFXRs
           })
@@ -920,7 +942,24 @@ export async function fetchFXR(
   endpoint?: number | string
 ) {
   const reloader = await connect(endpoint)
-  const fxr = await reloader.fetchFXR(id)
+  const fxr = await reloader.fetch(id)
+  reloader.ws.close()
+  return fxr
+}
+
+/**
+ * Fetch a list of loaded FXRs from the game's memory.
+ * @param id The IDs of the FXRs to fetch.
+ * @param endpoint The port number or URL string to connect to. By default, it
+ * will try to connect to `ws://localhost:24621`, and setting only the port
+ * will just replace the port number.
+ */
+export async function fetchFXRs(
+  ids: number[],
+  endpoint?: number | string
+) {
+  const reloader = await connect(endpoint)
+  const fxr = await reloader.fetch(ids)
   reloader.ws.close()
   return fxr
 }
@@ -935,7 +974,7 @@ export async function listFXRs(
   endpoint?: number | string
 ) {
   const reloader = await connect(endpoint)
-  const ids = await reloader.listFXRs()
+  const ids = await reloader.list()
   reloader.ws.close()
   return ids
 }
